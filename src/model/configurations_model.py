@@ -208,7 +208,7 @@ class configurations():
     def add_configuration(self, data):
         try:
             data = request.get_json()
-            
+
             new_name = data['name']
             new_createdAt = datetime.now()
             new_description = data['description']
@@ -505,9 +505,6 @@ class configurations():
 
 
 
-
-
-
     # def versionner_configuration(self, id, data, request):
     #     try:
     #         user_id = request.json['user_id']
@@ -525,13 +522,33 @@ class configurations():
     #             return make_response({"message": "No profile found!"}, 404)
     #         profile_name = profile_name[0]
 
-    #         # Récupérer la version actuelle de la configuration
-    #         self.cur.execute("SELECT version FROM configurations WHERE id=%s", (id,))
-    #         version = self.cur.fetchone()
-    #         if version is not None:
-    #             new_version = version[0] + 1
+    #         # Récupérer la dernière version de la configuration depuis la table configuration_versions
+    #         self.cur.execute("""
+    #             SELECT version, value
+    #             FROM configuration_versions
+    #             WHERE id_configuration = %s
+    #             ORDER BY version DESC
+    #             LIMIT 1
+    #         """, (id,))
+    #         configuration_data = self.cur.fetchone()
+    #         if configuration_data is not None:
+    #             version, current_value = configuration_data
+    #             if current_value == request.json["value"]:
+    #                 return make_response({"message": "Version of configuration already exists"}, 400)
+    #             new_version = version + 1
     #         else:
-    #             new_version = 1
+    #             return make_response({"message": "Configuration not found!"}, 404)
+
+    #         # Check if the value exists in configuration_versions
+    #         self.cur.execute("""
+    #             SELECT id
+    #             FROM configuration_versions
+    #             WHERE value=%s
+    #             AND id_configuration = %s
+    #         """, (request.json["value"], id))
+    #         existing_version = self.cur.fetchone()
+    #         if existing_version is not None:
+    #             return make_response({"message": "Version of configuration already exists"}, 400)
 
     #         # Mettre à jour la configuration actuelle avec la nouvelle version
     #         sql = """UPDATE configurations
@@ -545,16 +562,13 @@ class configurations():
 
     #         # Insérer la nouvelle version de la configuration dans la table configuration_versions
     #         sql = """INSERT INTO configuration_versions (name, value, updatedBy, description, version, id_configuration)
-    #                 SELECT name, value, updatedBy, description, version, id
-    #                 FROM configurations
-    #                 WHERE id = %s
+    #                 VALUES (%s, %s, %s, %s, %s, %s)
     #                 RETURNING id"""
-    #         self.cur.execute(sql, (id,))
+    #         self.cur.execute(sql, (request.json["name"], request.json["value"], profile_name, request.json["description"], new_version, id))
     #         inserted_id = self.cur.fetchone()[0]
     #         self.conn.commit()
 
     #         updated_configurations = {
-    #             "name": request.json["name"],
     #             "value": request.json["value"],
     #             "updatedBy": profile_name,
     #             "description": request.json["description"],
@@ -568,7 +582,6 @@ class configurations():
     #         for configuration in configurations:
     #             print(configuration)
 
-
     #         return make_response(updated_configurations, 200)
 
     #     except Exception as e:
@@ -576,7 +589,147 @@ class configurations():
     #         return make_response({"message": f"Error retrieving update configuration model: {e}"}, 500)
 
 
-    # def versionner_configuration(self, id, data, request):
+    
+    def versionner_configuration(self, id, data, files):
+        try:
+            user_id = data['user_id']
+            
+
+            # Récupérer l'id du user correspondant
+            self.cur.execute("SELECT id FROM users WHERE id = %s", (user_id,))
+            user_id = self.cur.fetchone()
+            if user_id is not None:
+                user_id = user_id[0]
+
+            # Récupérer l'id du profile correspondant
+            self.cur.execute("SELECT name FROM profiles WHERE user_id = %s", (user_id,))
+            profile_name = self.cur.fetchone()
+            if not profile_name:
+                return make_response({"message": "No profile found!"}, 404)
+            profile_name = profile_name[0]
+
+            # Récupérer la dernière version de la configuration depuis la table configuration_versions
+            self.cur.execute("""
+                SELECT version, value
+                FROM configuration_versions
+                WHERE id_configuration = %s
+                ORDER BY version DESC
+                LIMIT 1
+            """, (id,))
+            configuration_data = self.cur.fetchone()
+
+            # if configuration_data is not None:
+            #     version, file_path = configuration_data
+            #     if file_path and os.path.isfile(file_path):
+            #         new_version = version + 1
+            #         with open(file_path, 'r') as file:
+            #             file_data = json.load(file)
+            #             current_text = file_data.get("text")
+            #             if current_text == data.get("text"):
+            #                 return make_response({"message": "Version of configuration already exists"}, 400)
+            #     else:
+            #         return make_response({"message": "File specified in 'value' attribute not found"}, 404)
+            # else:
+            #     return make_response({"message": "Configuration not found!"}, 404)
+
+            # Check if the value exists in configuration_versions
+            self.cur.execute("""
+                SELECT id
+                FROM configuration_versions
+                WHERE value=%s
+                AND id_configuration = %s
+            """, (data["text"], id))
+            existing_version = self.cur.fetchone()
+            if existing_version is not None:
+                return make_response({"message": "Version of configuration already exists"}, 400)
+
+            # Save the file
+            if 'value' in files:
+                file = files['value']
+                uniqueFileName = str(datetime.now().timestamp()).replace(".", "")
+                fileNameSplit = file.filename.split(".")
+                ext = fileNameSplit[-1]
+                finalFilePath = f"uploads/files/{uniqueFileName}.{ext}"
+                file.save(finalFilePath)
+                value_file_path = finalFilePath
+            else:
+                value_file_path = None
+            
+            
+
+            # Compare the content of the file with the 'text' attribute
+            if value_file_path is not None:
+                with open(value_file_path, 'r') as file:
+                    file_content = json.load(file)
+                    new_file_text = file_content.get("text")
+
+            if configuration_data is not None:
+                version, file_path = configuration_data
+                if file_path and os.path.isfile(file_path):
+                    new_version = version + 1
+                    with open(file_path, 'r') as file:
+                        file_data = json.load(file)
+                        current_text = file_data.get("text")
+                        if current_text == new_file_text:
+                            return make_response({"message": "Version of configuration already exists"}, 400)
+                else:
+                    return make_response({"message": "File specified in 'value' attribute not found"}, 404)
+            else:
+                return make_response({"message": "Configuration not found!"}, 404)
+            
+            # Mettre à jour la configuration actuelle avec la nouvelle version
+            sql = """UPDATE configurations
+                    SET value=%s,
+                        updatedBy=%s,
+                        description=%s,
+                        version=%s
+                    WHERE id=%s"""
+            self.cur.execute(sql, (value_file_path, profile_name, data["description"], new_version, id))
+            self.conn.commit()
+
+            # Insérer la nouvelle version de la configuration dans la table configuration_versions
+            sql = """INSERT INTO configuration_versions (name, value, updatedBy, description, version, id_configuration)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    RETURNING id"""
+            self.cur.execute(sql, (data["name"], value_file_path, profile_name, data["description"], new_version, id))
+            inserted_id = self.cur.fetchone()[0]
+            self.conn.commit()
+
+            updated_configurations = {
+                "value": value_file_path,
+                "updatedBy": profile_name,
+                "description": data["description"],
+                "version": new_version
+            }
+
+            
+
+            # Afficher les configurations actuelles
+            self.cur.execute("SELECT * FROM configuration_versions")
+            configurations = self.cur.fetchall()
+            print(len(configurations))
+            for configuration in configurations:
+                print(configuration)
+
+            return make_response(updated_configurations, 200)
+
+        except Exception as e:
+            self.conn.rollback()
+            return make_response({"message": f"Error retrieving update configuration model: {e}"}, 500)
+
+
+
+
+
+
+
+
+
+
+
+
+
+    # def versionner_configuration(self, id, data, request, finalFilePath):
     #     try:
     #         user_id = request.json['user_id']
     #         new_versionningAt = datetime.now()
@@ -607,100 +760,12 @@ class configurations():
     #             version, current_file_path = configuration_data
     #             # Read the content of the current file
     #             with open(current_file_path, 'r') as file:
-    #                 current_content = file.read()
-    #             # Compare the content with the new value
-    #             if current_content == request.json["value"]:
-    #                 return make_response({"message": "No update needed. Content is the same as the current version."}, 200)
-    #             new_version = version + 1
-    #         else:
-    #             return make_response({"message": "Configuration not found!"}, 404)
+    #                 current_content = file.read(request.json["text"])
+    #             with open(finalFilePath, 'r') as file:
+    #                 new_content = file.read(request.json["text"])
 
-    #         # Check if the value exists in configuration_versions
-    #         self.cur.execute("""
-    #             SELECT id
-    #             FROM configuration_versions
-    #             WHERE value=%s
-    #             AND id_configuration = %s
-    #         """, (request.json["value"], id))
-    #         existing_version = self.cur.fetchone()
-    #         if existing_version is not None:
-    #             return make_response({"message": "Version of configuration already exists"}, 400)
-
-    #         # Mettre à jour la configuration actuelle avec la nouvelle version
-    #         sql = """UPDATE configurations
-    #                 SET value=%s,
-    #                     updatedBy=%s,
-    #                     description=%s,
-    #                     version=%s
-    #                 WHERE id=%s"""
-    #         self.cur.execute(sql, (request.json["value"], profile_name, request.json["description"], new_version, id))
-    #         self.conn.commit()
-
-    #         # Insérer la nouvelle version de la configuration dans la table configuration_versions
-    #         sql = """INSERT INTO configuration_versions (name, value, updatedBy, description, version, id_configuration, versionningAt)
-    #                 VALUES (%s, %s, %s, %s, %s, %s)
-    #                 RETURNING id"""
-    #         self.cur.execute(sql, (request.json["name"], request.json["value"], profile_name, request.json["description"], new_version, new_versionningAt, id))
-    #         inserted_id = self.cur.fetchone()[0]
-    #         self.conn.commit()
-
-    #         updated_configurations = {
-    #             "value": request.json["value"],
-    #             "updatedBy": profile_name,
-    #             "description": request.json["description"],
-    #             "version": new_version,
-    #             "versionningAt" : new_versionningAt
-    #         }
-
-    #         # Afficher les configurations actuelles
-    #         self.cur.execute("SELECT * FROM configuration_versions")
-    #         configurations = self.cur.fetchall()
-    #         print(len(configurations))
-    #         for configuration in configurations:
-    #             print(configuration)
-
-    #         return make_response(updated_configurations, 200)
-
-    #     except Exception as e:
-    #         self.conn.rollback()
-    #         return make_response({"message": f"Error retrieving update configuration model: {e}"}, 500)
-
-
-    # def versionner_configuration(self, id, data, request):
-    #     try:
-    #         user_id = request.json['user_id']
-    #         new_versionningAt = datetime.now()
-    #         new_value = data['value']
-
-    #         # Récupérer l'id du user correspondant
-    #         self.cur.execute("SELECT id FROM users WHERE id = %s", (user_id,))
-    #         user_id = self.cur.fetchone()
-    #         if user_id is not None:
-    #             user_id = user_id[0]
-
-    #         # Récupérer l'id du profile correspondant
-    #         self.cur.execute("SELECT name FROM profiles WHERE user_id = %s", (user_id,))
-    #         profile_name = self.cur.fetchone()
-    #         if not profile_name:
-    #             return make_response({"message": "No profile found!"}, 404)
-    #         profile_name = profile_name[0]
-
-    #         # Récupérer la dernière version de la configuration depuis la table configuration_versions
-    #         self.cur.execute("""
-    #             SELECT version, value
-    #             FROM configuration_versions
-    #             WHERE id_configuration = %s
-    #             ORDER BY version DESC
-    #             LIMIT 1
-    #         """, (id,))
-    #         configuration_data = self.cur.fetchone()
-    #         if configuration_data is not None:
-    #             version, current_value = configuration_data
-    #             # Read the content of the current file
-    #             with open(current_value, 'r') as file:
-    #                 current_content = file.read()
     #             # Compare the content with the new file's content
-    #             if current_content == request.json["text"]:
+    #             if current_content == new_content:
     #                 return make_response({"message": "No update needed. Content is the same as the current version."}, 200)
     #             new_version = version + 1
     #         else:
@@ -761,104 +826,6 @@ class configurations():
     #     except Exception as e:
     #         self.conn.rollback()
     #         return make_response({"message": f"Error retrieving update configuration model: {e}"}, 500)
-
-    def versionner_configuration(self, id, data, request, finalFilePath):
-        try:
-            user_id = request.json['user_id']
-            new_versionningAt = datetime.now()
-
-            # Récupérer l'id du user correspondant
-            self.cur.execute("SELECT id FROM users WHERE id = %s", (user_id,))
-            user_id = self.cur.fetchone()
-            if user_id is not None:
-                user_id = user_id[0]
-
-            # Récupérer l'id du profile correspondant
-            self.cur.execute("SELECT name FROM profiles WHERE user_id = %s", (user_id,))
-            profile_name = self.cur.fetchone()
-            if not profile_name:
-                return make_response({"message": "No profile found!"}, 404)
-            profile_name = profile_name[0]
-
-            # Récupérer la dernière version de la configuration depuis la table configuration_versions
-            self.cur.execute("""
-                SELECT version, value
-                FROM configuration_versions
-                WHERE id_configuration = %s
-                ORDER BY version DESC
-                LIMIT 1
-            """, (id,))
-            configuration_data = self.cur.fetchone()
-            if configuration_data is not None:
-                version, current_file_path = configuration_data
-                # Read the content of the current file
-                with open(current_file_path, 'r') as file:
-                    current_content = file.read(request.json["text"])
-                with open(finalFilePath, 'r') as file:
-                    new_content = file.read(request.json["text"])
-
-                # Compare the content with the new file's content
-                if current_content == new_content:
-                    return make_response({"message": "No update needed. Content is the same as the current version."}, 200)
-                new_version = version + 1
-            else:
-                return make_response({"message": "Configuration not found!"}, 404)
-
-            # Check if the value exists in configuration_versions
-            self.cur.execute("""
-                SELECT id
-                FROM configuration_versions
-                WHERE value=%s
-                AND id_configuration = %s
-            """, (request.json["text"], id))
-            existing_version = self.cur.fetchone()
-            if existing_version is not None:
-                return make_response({"message": "Version of configuration already exists"}, 400)
-
-            # Save the new file and get its path
-            unique_file_name = str(datetime.now().timestamp()).replace(".", "")
-            new_file_path = f"uploads/files/{unique_file_name}.txt"
-            with open(new_file_path, 'w') as file:
-                file.write(request.json["text"])
-
-            # Mettre à jour la configuration actuelle avec la nouvelle version
-            sql = """UPDATE configurations
-                    SET value=%s,
-                        updatedBy=%s,
-                        description=%s,
-                        version=%s
-                    WHERE id=%s"""
-            self.cur.execute(sql, (new_file_path, profile_name, request.json["description"], new_version, id))
-            self.conn.commit()
-
-            # Insérer la nouvelle version de la configuration dans la table configuration_versions
-            sql = """INSERT INTO configuration_versions (name, value, updatedBy, description, version, id_configuration, versionningAt)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                    RETURNING id"""
-            self.cur.execute(sql, (request.json["name"], new_file_path, profile_name, request.json["description"], new_version, new_versionningAt, id))
-            inserted_id = self.cur.fetchone()[0]
-            self.conn.commit()
-
-            updated_configurations = {
-                "value": new_file_path,
-                "updatedBy": profile_name,
-                "description": request.json["description"],
-                "version": new_version,
-                "versionningAt": new_versionningAt
-            }
-
-            # Afficher les configurations actuelles
-            self.cur.execute("SELECT * FROM configuration_versions")
-            configurations = self.cur.fetchall()
-            print(len(configurations))
-            for configuration in configurations:
-                print(configuration)
-
-            return make_response(updated_configurations, 200)
-
-        except Exception as e:
-            self.conn.rollback()
-            return make_response({"message": f"Error retrieving update configuration model: {e}"}, 500)
 
 
 

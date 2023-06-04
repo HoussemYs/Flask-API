@@ -90,17 +90,19 @@ def get_configuration(id):
 def add_configuration():
     try:
         data = request.get_json()
+        finalFilePath = None
 
         if 'value' in data:
-            file = data['value']
-            uniqueFileName = str(datetime.now().timestamp()).replace(".", "")
-            fileNameSplit = file.filename.split(".")
-            ext = fileNameSplit[-1]
-            finalFilePath = f"uploads/files/{uniqueFileName}.{ext}"
-            file.save(finalFilePath)
-            data['value'] = finalFilePath
-            # with open(finalFilePath, 'w') as file:
-            #     file.write(file)
+            if request.files and 'value' in request.files:
+                file = data['value']
+                uniqueFileName = str(datetime.now().timestamp()).replace(".", "")
+                fileNameSplit = file.filename.split(".")
+                ext = fileNameSplit[-1]
+                finalFilePath = f"uploads/files/{uniqueFileName}.{ext}"
+                file.save(finalFilePath)
+                data['value'] = finalFilePath
+                # with open(finalFilePath, 'w') as file:
+                #     file.write(file)
 
         return obj.add_configuration(data,finalFilePath)
     except Exception as e:
