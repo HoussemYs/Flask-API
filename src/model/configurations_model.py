@@ -17,6 +17,21 @@ class configurations():
         except psycopg2.Error as error:
             print(error)
             
+    def get_file_by_id_configuration(self, id):
+        try:
+            self.cur.execute("SELECT defaultValue FROM configurations WHERE id=%s", (id,))
+            result = self.cur.fetchone()
+            if result is not None:
+                file_name = result[0] 
+                file_path = f"{os.getcwd()}/{file_name}"
+                return file_path
+            # else:
+            #     return None  # Return None if no file path is found for the configuration
+        except Exception as e:
+            self.conn.rollback()
+            return make_response({"message": f"Error retrieving add configuration: {e}"}, 500)
+
+
 
     def search_configurations(self, term):
         try:
@@ -180,6 +195,7 @@ class configurations():
             self.conn.rollback()
             return make_response({"message": f"Error retrieving get configuration : {e}"}, 500)
 
+
     def add_configuration(self, data):
         try:
             new_name = data['name']
@@ -187,7 +203,8 @@ class configurations():
             new_description = data['description']
             new_version = 1
             new_user_id = data['user_id']
-            new_value = data['value']
+            new_defaultValue = data['value']
+            new_value = new_defaultValue  # Set defaultValue as the file path
 
             # Vérifier si l'utilisateur existe
             self.cur.execute("SELECT id FROM users WHERE id = %s", (new_user_id,))
@@ -212,7 +229,7 @@ class configurations():
             # Insert new configuration into the configurations table
             sql = """INSERT INTO configurations (name, value, defaultValue, createdAt, createdBy, description, version)
                     VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id"""
-            self.cur.execute(sql, (new_name, new_value, new_value,
+            self.cur.execute(sql, (new_name, new_value, new_defaultValue,
                                 new_createdAt, new_createdBy, new_description, new_version))
             configuration_id = self.cur.fetchone()[0]
             if not configuration_id:
@@ -236,7 +253,6 @@ class configurations():
         except Exception as e:
             self.conn.rollback()
             return make_response({"message": f"Error retrieving add configuration: {e}"}, 500)
-
 
     # def add_configuration(self, data):
     #     try:

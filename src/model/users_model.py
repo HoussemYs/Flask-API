@@ -22,7 +22,7 @@
 
 
 from app import app
-from flask import request, make_response, jsonify
+from flask import request, make_response, jsonify, session
 import psycopg2
 from datetime import datetime, timedelta
 import jwt
@@ -38,11 +38,63 @@ class users():
             self.conn, self.cur = connect()
         except psycopg2.Error as error:
                 print(error)
+
+
+    # def user_login(self, data):
+    #     try:
+    #         data_str = data.decode('utf-8')
+    #         data_dict = json.loads(data_str)
+        
+    #         username = data_dict['username']
+    #         password = data_dict['password']
+
+    #         self.cur.execute(
+    #             "SELECT * FROM users WHERE username=%s AND password=%s", (username, password))
+    #         result = self.cur.fetchone()
+    #         if not result:
+    #             return make_response({"message": "Incorrect username or password"} , 401)
+            
+    #         # Check if user is banned
+    #         if result[4]:
+    #             return make_response({"message": "User is banned and cannot log in"} , 401)
+
+    #         user_id = result[0]
+    #         self.cur.execute(
+    #             f"SELECT users_roles.role_id FROM users LEFT JOIN users_roles ON users.id = users_roles.user_id WHERE users.id = {user_id}")
+    #         res = self.cur.fetchall()
+    #         roles = [r[0] for r in res]
+    #         payload = {
+    #             "user_id": result[0],
+    #             "username": result[1],
+    #             "password": result[2],
+    #             "type_id": result[3],
+    #             "role_id": roles,
+    #             "exp": int((datetime.now() + timedelta(minutes=45)).timestamp())
+    #         }
+    #         jwtoken = jwt.encode(payload, "HoussemYousfi", algorithm="HS256")
+    #         response_data = {
+    #             'token': jwtoken,
+    #             'user_id': result[0],
+    #             'username': result[1],
+    #             'password': result[2],
+    #             'type_id': result[3],
+    #             'role_id': roles,
+    #         }
+    #         # response = make_response({'token': jwtoken}, 200)
+    #         response = make_response(response_data, 200)
+    #         response.headers['Authorization'] = f'Bearer {jwtoken}'
+    #         response.headers['Access-Control-Allow-Origin'] = "*"
+    #         logging.info(f"{username} has logged in at {datetime.now()}")
+    #         return response
+
+    #     except Exception as e:
+    #         return make_response({"erreur": str(e)}, 500)
+
     def user_login(self, data):
         try:
             data_str = data.decode('utf-8')
             data_dict = json.loads(data_str)
-        
+
             username = data_dict['username']
             password = data_dict['password']
 
@@ -50,17 +102,26 @@ class users():
                 "SELECT * FROM users WHERE username=%s AND password=%s", (username, password))
             result = self.cur.fetchone()
             if not result:
-                return make_response({"message": "Incorrect username or password"} , 401)
-            
+                return make_response({"message": "Incorrect username or password"}, 401)
+
             # Check if user is banned
             if result[4]:
-                return make_response({"message": "User is banned and cannot log in"} , 401)
+                return make_response({"message": "User is banned and cannot log in"}, 401)
 
-            user_id = result[0]
+            user_info = {
+                "user_id": result[0],
+                "username": result[1],
+                "password": result[2],
+                "type_id": result[3]
+            }
+
+            session['user_info'] = user_info
+
             self.cur.execute(
-                f"SELECT users_roles.role_id FROM users LEFT JOIN users_roles ON users.id = users_roles.user_id WHERE users.id = {user_id}")
-            res = self.cur.fetchall()
-            roles = [r[0] for r in res]
+                f"SELECT role_id FROM users_roles WHERE user_id = {result[0]}"
+            )
+            roles = [r[0] for r in self.cur.fetchall()]
+
             payload = {
                 "user_id": result[0],
                 "username": result[1],
@@ -74,11 +135,10 @@ class users():
                 'token': jwtoken,
                 'user_id': result[0],
                 'username': result[1],
-                'password': result[2],
                 'type_id': result[3],
                 'role_id': roles,
             }
-            # response = make_response({'token': jwtoken}, 200)
+
             response = make_response(response_data, 200)
             response.headers['Authorization'] = f'Bearer {jwtoken}'
             response.headers['Access-Control-Allow-Origin'] = "*"
@@ -88,7 +148,8 @@ class users():
         except Exception as e:
             return make_response({"erreur": str(e)}, 500)
 
-        
+
+
     def search_user_by_username(self, data):
         try:
             data_str = data.decode('utf-8')

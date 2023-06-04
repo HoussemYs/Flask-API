@@ -125,6 +125,7 @@ class profiles():
             self.conn.rollback()
             return make_response({"message": f"Error retrieving get all profiles : {e}"}, 500)
 
+    
     def update_profile(self, id, data):
         try:
             data_str = data.decode('utf-8')

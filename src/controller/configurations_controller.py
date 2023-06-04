@@ -1,13 +1,26 @@
 from app import app
 from model.configurations_model import configurations
 from model.auth_model import auth_model
-from flask import request, make_response
+from flask import request, make_response, send_file
 import traceback
 from datetime import datetime
 
 obj = configurations()
 auth = auth_model()
 
+@app.route("/configurations/file/<int:id>", methods=["GET"])
+# @auth.token_auth()
+def get_file_by_id_config(id):
+    try:
+        file_path = obj.get_file_by_id_configuration(id)
+        if file_path:
+            return send_file(file_path)
+        else:
+            return make_response({"message": "No file found for this configuration!"}, 404)
+    except Exception as e:
+        traceback.print_exc()
+        return make_response(f"Error in get file by id configuration: {e}", 500)
+    
 @app.route("/configurations/search", methods=["GET"])
 # @auth.token_auth()
 def search_configurations():
@@ -67,37 +80,13 @@ def add_configuration():
             finalFilePath = f"uploads/files/{uniqueFileName}.{ext}"
             file.save(finalFilePath)
             data['value'] = finalFilePath
-        
+            data['defaultValue'] = finalFilePath
+
         return obj.add_configuration(data)
     except Exception as e:
         traceback.print_exc()
         return make_response(f"error in add configuration controller: {e}", 500)
 
-# @app.route("/configurations", methods=["POST"])
-# @auth.token_auth()
-# def add_configuration():
-#     try:
-#         data = request.json
-        
-#         if 'value' in data:
-#             value = data['value']
-#             if isinstance(value, str):
-#                 # If 'value' is a string, do nothing
-#                 pass
-#             else:
-#                 # If 'value' is a file, save it
-#                 file = request.files['value']
-#                 uniqueFileName = str(datetime.now().timestamp()).replace(".", "")
-#                 fileNameSplit = file.filename.split(".")
-#                 ext = fileNameSplit[len(fileNameSplit)-1]
-#                 finalFilePath = f"uploads/files/{uniqueFileName}.{ext}"
-#                 file.save(finalFilePath)
-#                 data['value'] = finalFilePath
-
-#         return obj.add_configuration(data)
-#     except Exception as e:
-#         traceback.print_exc()
-#         return make_response(f"error in add configuration controller: {e}", 500)
 
 
 @app.route("/configuration/patch/<int:id>", methods=["PATCH"])

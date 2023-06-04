@@ -5,6 +5,7 @@ from flask_cors import CORS
 
 
 app = Flask(__name__)
+app.secret_key='HoussemYousfi'
 CORS(app, supports_credentials=True, origins='*')
 
 # Set log level to INFO
