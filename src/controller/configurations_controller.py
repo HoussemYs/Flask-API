@@ -49,7 +49,7 @@ def search_versions():
     
 
 @app.route("/configurations", methods=["GET"])
-@auth.token_auth()
+# @auth.token_auth()
 def get_all_configurations():
     try:
         return obj.get_all_configurations()
@@ -66,23 +66,43 @@ def get_configuration(id):
         traceback.print_exc()
         return make_response(f"error in get configuration controller: {e}", 204)
 
+# @app.route("/configurations", methods=["POST"])
+# # @auth.token_auth()
+# def add_configuration():
+#     try:
+#         data = request.form.to_dict()
+        
+#         if 'value' in request.files:
+#             file = request.files['value']
+#             uniqueFileName = str(datetime.now().timestamp()).replace(".", "")
+#             fileNameSplit = file.filename.split(".")
+#             ext = fileNameSplit[-1]
+#             finalFilePath = f"uploads/files/{uniqueFileName}.{ext}"
+#             file.save(finalFilePath)
+#             data['value'] = finalFilePath
+
+#         return obj.add_configuration(data)
+#     except Exception as e:
+#         traceback.print_exc()
+#         return make_response(f"error in add configuration controller: {e}", 500)
+
 @app.route("/configurations", methods=["POST"])
-@auth.token_auth()
 def add_configuration():
     try:
-        data = request.form.to_dict()
-        
-        if 'value' in request.files:
-            file = request.files['value']
+        data = request.get_json()
+
+        if 'value' in data:
+            file = data['value']
             uniqueFileName = str(datetime.now().timestamp()).replace(".", "")
             fileNameSplit = file.filename.split(".")
             ext = fileNameSplit[-1]
             finalFilePath = f"uploads/files/{uniqueFileName}.{ext}"
             file.save(finalFilePath)
             data['value'] = finalFilePath
-            data['defaultValue'] = finalFilePath
+            # with open(finalFilePath, 'w') as file:
+            #     file.write(file)
 
-        return obj.add_configuration(data)
+        return obj.add_configuration(data,finalFilePath)
     except Exception as e:
         traceback.print_exc()
         return make_response(f"error in add configuration controller: {e}", 500)
@@ -117,13 +137,24 @@ def delete_configuration(id):
         return make_response(f"error in delete configuration controller: {e}", 204)
 
 
+
                                      # TABLE CONFIGURATION VERSION
 
 @app.route("/versionner/<int:id>", methods=["put"])
 # @auth.token_auth()
 def versionner_configuration(id):
     try:
-        return obj.versionner_configuration(id, request.data, request)
+        data = request.form.to_dict()
+        if 'value' in request.files:
+            file = request.files['value']
+            uniqueFileName = str(datetime.now().timestamp()).replace(".", "")
+            fileNameSplit = file.filename.split(".")
+            ext = fileNameSplit[-1]
+            finalFilePath = f"uploads/files/{uniqueFileName}.{ext}"
+            file.save(finalFilePath)
+            # data['value'] = finalFilePath
+
+        return obj.versionner_configuration(id, request.data, request, finalFilePath)
     except Exception as e:
         traceback.print_exc()
         return make_response(f"error in update configuration controller: {e}", 204)
